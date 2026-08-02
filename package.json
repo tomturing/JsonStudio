@@ -14,7 +14,8 @@
     "test": "node --test \"tests/**/*.test.js\"",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "prepare": "husky"
   },
   "license": "Apache-2.0",
   "repository": {
@@ -47,6 +48,8 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.1",
+    "@commitlint/config-conventional": "^21.2.0",
     "@internationalized/date": "^3.10.1",
     "@lucide/svelte": "^0.561.0",
     "@playwright/test": "^1.60.0",
@@ -58,6 +61,7 @@
     "@tauri-apps/cli": "^2",
     "autoprefixer": "^10.4.23",
     "postcss": "^8.5.6",
+    "husky": "^9.1.7",
     "svelte": "^5.0.0",
     "svelte-check": "^4.0.0",
     "tailwindcss": "^4.1.18",
