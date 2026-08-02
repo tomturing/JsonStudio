@@ -5,7 +5,7 @@
   import { openExternalUrl } from '$lib/services/externalLinks.js';
   import { findJsonTreeNodeAtOffset } from '$lib/services/jsonTreeModel.js';
   import { getCachedJsonTreeModel, getJsonTreeModelAsync } from '$lib/services/jsonTreeModelCache.js';
-  import { createTreeDragMove, createTreeKeyEdit, createTreePathCopyText, createTreeValueCopyText, isTreeKeyEditable as isEditableTreeKey } from '$lib/services/treeEdit.js';
+  import { createTreeDragMove, createTreeKeyEdit, createTreePathCopyText, createTreeValueCopyText, getTreeNodeSelectionRange, isTreeKeyEditable as isEditableTreeKey } from '$lib/services/treeEdit.js';
   import { runTreeQuery, type QueryMode } from '$lib/services/treeQuery';
   import ConfirmDialog from '../dialogs/ConfirmDialog.svelte';
   import type MonacoEditor from './MonacoEditor.svelte';
@@ -674,9 +674,9 @@
 
     selectedPath = node.path;
 
-    const endOffset = node.endOffset <= node.startOffset ? node.startOffset + 1 : node.endOffset;
-    const start = model.getPositionAt(node.startOffset);
-    const end = model.getPositionAt(endOffset);
+    const selection = getTreeNodeSelectionRange(content, node);
+    const start = model.getPositionAt(selection.start);
+    const end = model.getPositionAt(selection.end);
     
     editorInstance.setSelection({
       startLineNumber: start.lineNumber,

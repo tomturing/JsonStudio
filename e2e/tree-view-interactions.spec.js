@@ -14,7 +14,20 @@ const DOCUMENT = `{
   }
 }`;
 
-async function installTauriHarness(page) {
+const JSON5_COMMENT_DOCUMENT = `{
+  "1": {
+    "A": {
+      "0": {
+        "1": 1 // 1
+      },
+      "1": {
+        "2": 2 // 2
+      }
+    }
+  }
+}`;
+
+async function installTauriHarness(page, content = DOCUMENT) {
   await page.addInitScript(({ tabStateKey, settingsKey, content }) => {
     localStorage.setItem(tabStateKey, JSON.stringify({
       tabs: [{
@@ -80,15 +93,15 @@ async function installTauriHarness(page) {
   }, {
     tabStateKey: TAB_STATE_KEY,
     settingsKey: SETTINGS_KEY,
-    content: DOCUMENT,
+    content,
   });
 }
 
-async function openTreeDocument(page) {
-  await installTauriHarness(page);
+async function openTreeDocument(page, content = DOCUMENT) {
+  await installTauriHarness(page, content);
   await page.goto('/');
   await expect(page.getByTestId('tree-ready')).toBeAttached();
-  await expect(page.getByTestId('editor-line-count')).toContainText('11 lines');
+  await expect(page.getByTestId('editor-line-count')).toContainText(`${content.split('\n').length} lines`);
 }
 
 function treeRow(page, path) {
@@ -110,6 +123,33 @@ test('single click selects the Tree node and jumps to its editor range', async (
   const selectionBox = await editorSelection.boundingBox();
   expect(selectionBox?.width).toBeGreaterThan(0);
   expect(selectionBox?.height).toBeGreaterThan(0);
+});
+
+test('deleting a Tree selection removes its parent separator', async ({ page }) => {
+  const secondRow = treeRow(page, '/second');
+  await secondRow.click();
+  await page.keyboard.press('Delete');
+
+  const editorLines = page.locator('[data-testid="json-editor"] .view-lines');
+  await expect(editorLines).not.toContainText('"second": "two"');
+  await expect(editorLines).toContainText('"first": "one"');
+  await expect(editorLines).toContainText('"profile": {');
+});
+
+test('deleting a JSON5 Tree selection removes its trailing line comment', async ({ page }) => {
+  await openTreeDocument(page, JSON5_COMMENT_DOCUMENT);
+
+  await treeRow(page, '/1/A').locator('.tree-toggle-btn').click();
+  await treeRow(page, '/1/A/1').locator('.tree-toggle-btn').click();
+
+  const secondCommentedRow = treeRow(page, '/1/A/1/2');
+  await secondCommentedRow.click();
+  await page.keyboard.press('Delete');
+
+  const editorLines = page.locator('[data-testid="json-editor"] .view-lines');
+  await expect(editorLines).not.toContainText('"2": 2');
+  await expect(editorLines).not.toContainText('// 2');
+  await expect(editorLines).toContainText('"1": 1 // 1');
 });
 
 test('double click edits a primitive value and writes it back to the editor', async ({ page }) => {

@@ -6,6 +6,7 @@ import {
   createTreePathCopyText,
   createTreeValueCopyText,
   createTreeKeyEdit,
+  getTreeNodeSelectionRange,
   isTreeKeyEditable,
   validateTreeKeyName,
 } from '../src/lib/services/treeEdit.js';
@@ -107,6 +108,88 @@ test('creates tree copy text for absolute node paths', () => {
     createTreePathCopyText(data, '/items/0/name'),
     'items[0].name',
   );
+});
+
+test('selects a tree entry with its parent separator for deletion', () => {
+  const cases = [
+    {
+      content: '{"a":1,"b":2,"c":3}',
+      path: '/a',
+      expected: '{"b":2,"c":3}',
+    },
+    {
+      content: '{"a":1,"b":2,"c":3}',
+      path: '/b',
+      expected: '{"a":1,"c":3}',
+    },
+    {
+      content: '{"a":1,"b":2,"c":3}',
+      path: '/c',
+      expected: '{"a":1,"b":2}',
+    },
+    {
+      content: '[1,2,3]',
+      path: '/0',
+      expected: '[2,3]',
+    },
+    {
+      content: '[1,2,3]',
+      path: '/1',
+      expected: '[1,3]',
+    },
+    {
+      content: '[1,2,3]',
+      path: '/2',
+      expected: '[1,2]',
+    },
+    {
+      content: '{"outer":{"a":1,"b":2},"tail":3}',
+      path: '/outer/b',
+      expected: '{"outer":{"a":1},"tail":3}',
+    },
+    {
+      content: '{a: 1 /* value note */, b: 2,}',
+      path: '/a',
+      expected: '{ b: 2,}',
+    },
+    {
+      content: '{"a": 1, "b": 2 // b\n}',
+      path: '/b',
+      expected: '{"a": 1}',
+    },
+    {
+      content: `{
+  "0": {
+    "1": 1 // 1
+  },
+  "1": {
+    "2": 2 // 2
+  }
+}`,
+      path: '/1/2',
+      expected: `{
+  "0": {
+    "1": 1 // 1
+  },
+  "1": {
+  }
+}`,
+    },
+  ];
+
+  for (const { content, path, expected } of cases) {
+    const model = buildJsonTreeModel(content);
+    const node = model.nodeIndex.get(path);
+    assert.ok(node, `Tree node ${path} should exist`);
+
+    const range = getTreeNodeSelectionRange(content, node);
+    const deleted = content.slice(0, range.start) + content.slice(range.end);
+    assert.equal(deleted, expected, `unexpected deletion result for ${path}`);
+    assert.doesNotThrow(
+      () => buildJsonTreeModel(deleted),
+      `deleting ${path} should leave a parseable document`,
+    );
+  }
 });
 
 test('tree view exposes key and primitive value edit writeback on double click', () => {

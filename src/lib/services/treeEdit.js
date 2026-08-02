@@ -45,6 +45,233 @@ export function createTreeKeyEdit(pointers, path, nextKey, parentKeys, currentKe
 }
 
 /**
+ * Return the source range that should be selected when a Tree node is deleted
+ * from the editor. The range includes the node's key (when it has one) and
+ * exactly one separator from its parent, so Monaco's native Delete/Backspace
+ * command cannot leave an orphaned comma behind.
+ *
+ * @param {string} content
+ * @param {{
+ *   startOffset: number
+ *   endOffset: number
+ *   entryStartOffset: number
+ *   entryEndOffset: number
+ * }} node
+ * @returns {{ start: number; end: number }}
+ */
+export function getTreeNodeSelectionRange(content, node) {
+  const start = Number.isInteger(node.entryStartOffset)
+    ? node.entryStartOffset
+    : node.startOffset;
+  const end = Number.isInteger(node.entryEndOffset)
+    ? node.entryEndOffset
+    : node.endOffset;
+
+  if (!Number.isInteger(start) || !Number.isInteger(end) || end < start) {
+    return { start: 0, end: 0 };
+  }
+
+  const trailingRange = findTrailingSourceRange(content, end);
+  if (trailingRange.end > end) {
+    let selectionStart = start;
+    if (!trailingRange.hasSeparator && trailingRange.hasLineComment) {
+      const previousSignificantOffset = findPreviousSignificantOffset(content, start);
+      if (previousSignificantOffset >= 0 && content[previousSignificantOffset] === ',') {
+        selectionStart = previousSignificantOffset;
+      }
+    }
+    if (trailingRange.hasLineComment) {
+      selectionStart = expandToIndentedLineStart(content, selectionStart, start);
+    }
+    return { start: selectionStart, end: trailingRange.end };
+  }
+
+  const previousSignificantOffset = findPreviousSignificantOffset(content, start);
+  if (previousSignificantOffset >= 0 && content[previousSignificantOffset] === ',') {
+    return { start: previousSignificantOffset, end };
+  }
+
+  return { start, end };
+}
+
+/**
+ * @param {string} content
+ * @param {number} start
+ * @returns {{ end: number; hasSeparator: boolean; hasLineComment: boolean }}
+ */
+function findTrailingSourceRange(content, start) {
+  let index = Math.max(0, start);
+  let end = index;
+  let hasSeparator = false;
+  let hasLineComment = false;
+  let lineBreakSinceToken = false;
+
+  while (index < content.length) {
+    const lineBreakLength = getLineBreakLength(content, index);
+    if (lineBreakLength > 0) {
+      lineBreakSinceToken = true;
+      index += lineBreakLength;
+      continue;
+    }
+
+    if (/\s/u.test(content[index])) {
+      index += 1;
+      continue;
+    }
+
+    if (content.startsWith('//', index)) {
+      if (lineBreakSinceToken) break;
+      const lineEnd = findLineTerminator(content, index + 2);
+      hasLineComment = true;
+      return {
+        end: lineEnd < 0 ? content.length : lineEnd + getLineBreakLength(content, lineEnd),
+        hasSeparator,
+        hasLineComment,
+      };
+    }
+
+    if (content.startsWith('/*', index)) {
+      const commentEnd = content.indexOf('*/', index + 2);
+      if (lineBreakSinceToken) break;
+      if (commentEnd < 0) {
+        return {
+          end: content.length,
+          hasSeparator,
+          hasLineComment,
+        };
+      }
+      end = commentEnd + 2;
+      lineBreakSinceToken = containsLineBreak(content, index, end);
+      index = end;
+      continue;
+    }
+
+    if (content[index] === ',') {
+      hasSeparator = true;
+      end = index + 1;
+      index = end;
+      lineBreakSinceToken = false;
+      continue;
+    }
+
+    break;
+  }
+
+  return { end, hasSeparator, hasLineComment };
+}
+
+/**
+ * @param {string} content
+ * @param {number} start
+ * @param {number} entryStart
+ */
+function expandToIndentedLineStart(content, start, entryStart) {
+  const lineStart = findLineStart(content, entryStart);
+  if (start < lineStart) return start;
+  return /^\s*$/u.test(content.slice(lineStart, entryStart)) ? lineStart : start;
+}
+
+/** @param {string} content @param {number} offset */
+function findLineStart(content, offset) {
+  let index = Math.max(0, Math.min(content.length, offset));
+  while (index > 0) {
+    const previous = content[index - 1];
+    if (previous === '\n' || previous === '\r' || previous === '\u2028' || previous === '\u2029') {
+      break;
+    }
+    index -= 1;
+  }
+  return index;
+}
+
+/** @param {string} content @param {number} offset */
+function findLineTerminator(content, offset) {
+  for (let index = Math.max(0, offset); index < content.length; index += 1) {
+    if (getLineBreakLength(content, index) > 0) return index;
+  }
+  return -1;
+}
+
+/** @param {string} content @param {number} offset */
+function getLineBreakLength(content, offset) {
+  const char = content[offset];
+  if (char === '\r' && content[offset + 1] === '\n') return 2;
+  if (char === '\r' || char === '\n' || char === '\u2028' || char === '\u2029') return 1;
+  return 0;
+}
+
+/** @param {string} content @param {number} start @param {number} end */
+function containsLineBreak(content, start, end) {
+  return findLineTerminator(content, start) >= 0
+    && findLineTerminator(content, start) < end;
+}
+
+/**
+ * Find the last source token before a boundary while ignoring strings and
+ * JSON5 comments. Scanning forward avoids treating a comma inside a string or
+ * comment as the parent's separator.
+ *
+ * @param {string} content
+ * @param {number} boundary
+ */
+function findPreviousSignificantOffset(content, boundary) {
+  const limit = Math.max(0, Math.min(content.length, boundary));
+  let index = 0;
+  let previous = -1;
+
+  while (index < limit) {
+    if (/\s/u.test(content[index])) {
+      index += 1;
+      continue;
+    }
+
+    if (content.startsWith('//', index)) {
+      const lineEnd = findLineTerminator(content, index + 2);
+      index = lineEnd < 0
+        ? limit
+        : Math.min(limit, lineEnd + getLineBreakLength(content, lineEnd));
+      continue;
+    }
+
+    if (content.startsWith('/*', index)) {
+      const commentEnd = content.indexOf('*/', index + 2);
+      index = commentEnd < 0 ? limit : Math.min(limit, commentEnd + 2);
+      continue;
+    }
+
+    if (content[index] === '"' || content[index] === "'") {
+      const stringEnd = findStringEnd(content, index, content[index]);
+      previous = Math.min(limit, stringEnd) - 1;
+      index = Math.max(index + 1, stringEnd);
+      continue;
+    }
+
+    previous = index;
+    index += 1;
+  }
+
+  return previous;
+}
+
+/**
+ * @param {string} content
+ * @param {number} start
+ * @param {string} quote
+ */
+function findStringEnd(content, start, quote) {
+  let index = start + 1;
+  while (index < content.length) {
+    if (content[index] === '\\') {
+      index += 2;
+      continue;
+    }
+    if (content[index] === quote) return index + 1;
+    index += 1;
+  }
+  return content.length;
+}
+
+/**
  * @param {string} content
  * @param {Record<string, any>} pointers
  * @param {string} path
