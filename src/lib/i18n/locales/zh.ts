@@ -8,6 +8,7 @@ export default {
   'toolbar.open': '打开',
   'toolbar.openTooltip': '打开本地 JSON 文件或文件夹',
   'toolbar.save': '保存',
+  'toolbar.saveAs': '另存为',
 
   // Toolbar - JSON transform
   'toolbar.format': '美化',

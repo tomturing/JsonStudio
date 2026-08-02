@@ -18,7 +18,7 @@
   import { t } from '$lib/i18n';
   import type { EditorTheme } from '$lib/config/monacoThemes';
   import type { Window as TauriWindow } from '@tauri-apps/api/window';
-  import { FilePlus2, Save as SaveIcon } from '@lucide/svelte';
+  import { FileOutput, FilePlus2, Save as SaveIcon } from '@lucide/svelte';
   import type MonacoEditor from './MonacoEditor.svelte';
   import { folderStore } from '$lib/stores/folder';
   import {
@@ -469,6 +469,11 @@
   async function handleExportImageFromMenu() {
     showFileActionsMenu = false;
     await handleExportImage();
+  }
+
+  async function handleSaveAsFromMenu() {
+    showFileActionsMenu = false;
+    await handleSaveAsFile();
   }
 
   let appSettings = $state<import('$lib/stores/settings').AppSettings>({
@@ -1012,6 +1017,10 @@
               class="toolbar-file-actions-dropdown"
               style="top: {fileActionsDropdownTop}px; left: {fileActionsDropdownLeft}px;"
             >
+              <button class="open-menu-item" onclick={handleSaveAsFromMenu} disabled={isSubPageMode}>
+                <FileOutput size={14} strokeWidth={1.5} style="color: #3b82f6;" aria-hidden="true" />
+                <span>{$t('toolbar.saveAs')}</span>
+              </button>
               <button class="open-menu-item export-menu-item" onclick={handleExportImageFromMenu} disabled={isExporting || isSubPageMode}>
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
                   <rect x="2" y="2" width="12" height="12" rx="1.5" stroke-linecap="round" stroke-linejoin="round"/>

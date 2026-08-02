@@ -22,6 +22,23 @@ test('export image toolbar saves PNG bytes to a selected file location', async (
   assert.doesNotMatch(handlerBody, /toolbar\.exportImageCopied/);
 });
 
+test('file actions menu exposes save as next to export actions', async () => {
+  const source = await readFile(
+    new URL('../src/lib/components/editor/JsonEditorToolbar.svelte', import.meta.url),
+    'utf8',
+  );
+
+  const dropdown = source.match(/class="toolbar-file-actions-dropdown"[\s\S]*?\{\/if\}/)?.[0] || '';
+
+  assert.match(source, /async function handleSaveAsFromMenu\(\)/);
+  assert.match(source, /showFileActionsMenu = false;[\s\S]*?await handleSaveAsFile\(\);/);
+  assert.match(dropdown, /class="open-menu-item" onclick=\{handleSaveAsFromMenu\}/);
+  assert.match(dropdown, /\$t\('toolbar\.saveAs'\)/);
+  assert.match(dropdown, /<FileOutput size=\{14\} strokeWidth=\{1\.5\}/);
+  assert.doesNotMatch(dropdown, /<SaveIcon size=\{14\} strokeWidth=\{1\.5\}/);
+  assert.match(dropdown, /class="open-menu-item export-menu-item"/);
+});
+
 test('export image service exposes PNG base64 to byte conversion', async () => {
   const source = await readFile(
     new URL('../src/lib/services/exportImage.ts', import.meta.url),

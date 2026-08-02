@@ -8,6 +8,7 @@ export default {
   'toolbar.open': 'Open',
   'toolbar.openTooltip': 'Open local JSON file or folder',
   'toolbar.save': 'Save',
+  'toolbar.saveAs': 'Save As',
 
   // Toolbar - JSON transform
   'toolbar.format': 'Prettify',
