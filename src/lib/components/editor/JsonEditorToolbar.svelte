@@ -11,6 +11,7 @@
   import { settingsStore } from '$lib/stores/settings';
   import { getSaveFileName } from '$lib/stores/untitledTabs.js';
   import { normalizeOpenedJson } from '$lib/services/openJsonNormalize.js';
+  import { isJsonlFilePath } from '$lib/services/jsonlParser.js';
   import {
     detectJsonDialectAsync,
     getJsonDocumentStatsAsync,
@@ -211,6 +212,7 @@
     isCodegenMode,
     isCodegenJsonOutputActive,
     isSchemaMode,
+    isJsonlFile,
     content,
     activeTab,
     isDarkMode,
@@ -237,6 +239,7 @@
     isCodegenMode: boolean;
     isCodegenJsonOutputActive: boolean;
     isSchemaMode: boolean;
+    isJsonlFile: boolean;
     content: string;
     activeTab: Tab | null;
     isDarkMode: boolean;
@@ -264,7 +267,7 @@
   let hasContent = $derived(Boolean(content.trim()));
   let hasJsonContent = $derived(Boolean(jsonContent.trim()));
   let isSubPageMode = $derived(isDiffMode || isConvertMode || isCodegenMode || isSchemaMode);
-  let canUseJsonTools = $derived(!isCodegenMode || isCodegenJsonOutputActive);
+  let canUseJsonTools = $derived(!isJsonlFile && (!isCodegenMode || isCodegenJsonOutputActive));
   let showOpenMenu = $state(false);
   let showFileActionsMenu = $state(false);
   let openMenuEl = $state<HTMLDivElement | null>(null);
@@ -780,6 +783,7 @@
   }
 
   function handleFoldAll() {
+    if (!canUseJsonTools) return;
     if (!hasJsonContent) {
       onToast($t('toolbar.noContentFold'), 'info');
       return;
@@ -789,6 +793,7 @@
   }
 
   function handleUnfoldAll() {
+    if (!canUseJsonTools) return;
     if (!hasJsonContent) {
       onToast($t('toolbar.noContentUnfold'), 'info');
       return;
@@ -855,6 +860,7 @@
           formatJson: formatJsonText,
           detectDialect: (value) => detectJsonDialectAsync(`open:${path}`, value),
           formatJson5,
+          skipNormalization: isJsonlFilePath(path),
         });
 
         // Smart open: reuse empty tab or create new one
@@ -1065,7 +1071,7 @@
         <button
           class="toolbar-btn"
           onclick={handleToggleFold}
-          disabled={isProcessing}
+          disabled={isProcessing || !canUseJsonTools}
           use:tooltip={isFolded ? `${$t('toolbar.unfoldAllTooltip')} (${shortcutLabel('unfoldAll')})` : `${$t('toolbar.foldAllTooltip')} (${shortcutLabel('foldAll')})`}
         >
           {#if isFolded}

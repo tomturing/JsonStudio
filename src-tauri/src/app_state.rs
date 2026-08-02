@@ -114,4 +114,27 @@ mod tests {
             vec![json.to_string_lossy().into_owned()]
         );
     }
+
+    #[test]
+    fn collects_jsonl_and_ndjson_file_args() {
+        let dir = test_dir();
+        let jsonl = dir.join("events.jsonl");
+        let ndjson = dir.join("events.NDJSON");
+        fs::write(&jsonl, "{\"id\":1}").unwrap();
+        fs::write(&ndjson, "{\"id\":2}").unwrap();
+
+        assert_eq!(
+            collect_json_file_args(
+                &[
+                    jsonl.to_string_lossy().into_owned(),
+                    ndjson.to_string_lossy().into_owned()
+                ],
+                dir.to_str().unwrap(),
+            ),
+            vec![
+                jsonl.to_string_lossy().into_owned(),
+                ndjson.to_string_lossy().into_owned()
+            ]
+        );
+    }
 }

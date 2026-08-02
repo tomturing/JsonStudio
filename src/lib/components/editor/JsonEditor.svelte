@@ -18,6 +18,7 @@
   import RightViewPanel from './RightViewPanel.svelte';
   import FolderSidebar from './FolderSidebar.svelte';
   import JsonEditorToast from './JsonEditorToast.svelte';
+  import JsonlView from './JsonlView.svelte';
   import LogJsonFragmentsPanel from './LogJsonFragmentsPanel.svelte';
   import ConfirmDialog from '../dialogs/ConfirmDialog.svelte';
   import AppUpdateNotification from '$lib/components/AppUpdateNotification.svelte';
@@ -36,6 +37,7 @@
   import type { ConvertFormat } from '$lib/services/convert';
   import { cancelPasteFormat, formatPastedJsonAsync } from '$lib/services/pasteFormatWorker.js';
   import { normalizeOpenedJson } from '$lib/services/openJsonNormalize.js';
+  import { isJsonlFilePath } from '$lib/services/jsonlParser.js';
   import {
     detectJsonDialectAsync,
     getJsonDocumentStatsAsync,
@@ -64,6 +66,12 @@
   };
   type DiffSide = 'original' | 'modified';
   type TabWithContent = import('$lib/stores/tabs').Tab & { content: string };
+  type JsonlSummary = {
+    recordCount: number;
+    validCount: number;
+    invalidCount: number;
+    emptyCount: number;
+  };
 
   let content = $state('');
   let lineCount = $state(0);
@@ -113,6 +121,9 @@
   let isLogJsonDetectionPending = $state(false);
   let logJsonSource = $state('');
   const logJsonStateByTab = new Map<string, LogJsonDetectionState>();
+  let jsonlSummary = $state<JsonlSummary | null>(null);
+  let jsonlViewMode = $state<'records' | 'source'>('records');
+  let previousJsonlIdentity = '';
   let diffOriginal = $state('');
   let diffModified = $state('');
   let diffLineCount = $state(0);
@@ -212,6 +223,7 @@
           formatJson: formatJsonText,
           detectDialect: (value) => detectJsonDialectAsync(`open:${filePath}`, value),
           formatJson5,
+          skipNormalization: isJsonlFilePath(filePath),
         });
         tabsStore.openFile(normalizedContent, filePath, name);
         
@@ -507,6 +519,10 @@
     return state.tabs.find(tab => tab.id === state.activeTabId) || state.tabs[0] || null;
   }
 
+  function isJsonlTab(tab: import('$lib/stores/tabs').Tab | null | undefined) {
+    return isJsonlFilePath(tab?.filePath ?? '') || isJsonlFilePath(tab?.fileName ?? '');
+  }
+
   function countLines(value: string) {
     if (!value) return 0;
     let count = 1;
@@ -758,10 +774,22 @@
   let tabSize = $derived(settings.tabSize);
   let showTreeView = $derived(settings.showTreeView);
   let showFolderView = $derived(settings.showFolderView);
+  let isJsonlFileActive = $derived(isJsonlTab($activeTab));
+  let isJsonlMode = $derived(
+    isJsonlFileActive && !isDiffMode && !isConvertMode && !isCodegenMode && !isSchemaMode,
+  );
   let isMixedLogContent = $derived(logJsonSource === content && logJsonFragments.length > 0);
   let hasLogJsonFragmentsPanel = $derived(isLogJsonPanelOpen && isMixedLogContent);
   let usesLogJsonLayout = $derived(hasLogJsonFragmentsPanel || isLogJsonDetectionPending);
   let monacoTheme = $derived<EditorTheme>(isDarkMode ? settings.darkTheme : settings.lightTheme);
+
+  $effect(() => {
+    const identity = `${$activeTab?.id ?? ''}:${isJsonlFileActive}`;
+    if (identity === previousJsonlIdentity) return;
+    previousJsonlIdentity = identity;
+    jsonlViewMode = isJsonlFileActive ? 'records' : 'source';
+    jsonlSummary = null;
+  });
 
   onDestroy(() => {
     if (rightPanelSyncFrame !== null) cancelAnimationFrame(rightPanelSyncFrame);
@@ -1122,6 +1150,12 @@
     }
     cancelLogJsonDetection();
 
+    if (isJsonlTab(tab)) {
+      clearActiveLogJsonState();
+      isLogJsonDetectionPending = false;
+      return false;
+    }
+
     const cached = logJsonStateByTab.get(tab.id);
     if (cached?.source === value) {
       void applyLogJsonDetectionResult(tab.id, value, cached.fragments, false);
@@ -1188,7 +1222,7 @@
     cancelLogJsonDetection();
     const tabId = options.tabId ?? $activeTab?.id;
 
-    if (!tabId || !canExtractLogJsonFragments(value)) {
+    if (!tabId || isJsonlTab($activeTab) || !canExtractLogJsonFragments(value)) {
       resetLogJsonFragments();
       return;
     }
@@ -1356,6 +1390,7 @@
     if (isEditorModelPending || editorModelKey !== currentTab.id) return;
     setContentState(newValue, { syncRightPanel: true });
     tabsStore.updateTabContent(currentTab.id, newValue);
+    if (isJsonlTab(currentTab)) jsonlSummary = null;
 
     if (statsTimer) clearTimeout(statsTimer);
     if (!content.trim()) { 
@@ -1391,6 +1426,7 @@
     setContentState(newValue, { syncRightPanel: true });
     if (!currentTab) return;
     tabsStore.updateTabContent(currentTab.id, newValue);
+    if (isJsonlTab(currentTab)) jsonlSummary = null;
     scheduleLogJsonDetection(newValue);
 
     if (settings.autoSave) {
@@ -1407,6 +1443,7 @@
   async function handleEditorPaste() {
     const sourceTab = $activeTab;
     if (!sourceTab) return;
+    if (isJsonlTab(sourceTab)) return;
     if (isEditorModelPending || editorModelKey !== sourceTab.id) return;
     const tabId = sourceTab.id;
     const sourceValue = content;
@@ -1442,6 +1479,7 @@
     if (!content.trim()) return;
     const currentTab = $activeTab;
     if (!currentTab) return;
+    if (isJsonlTab(currentTab)) return;
     const tabId = currentTab.id;
     const source = content;
     
@@ -1490,6 +1528,7 @@
     isCodegenMode={isCodegenMode}
     isCodegenJsonOutputActive={isCodegenJsonOutputActive}
     isSchemaMode={isSchemaMode}
+    isJsonlFile={isJsonlFileActive}
     content={content}
     activeTab={$activeTab}
     isDarkMode={isDarkMode}
@@ -1634,32 +1673,51 @@
           />
         {:else}
           <div class="json-editor-workspace">
-            <div class="json-editor-main">
-              <MonacoEditor
-                bind:this={monacoEditor}
-                value={content}
-                modelKey={editorModelKey}
-                theme={monacoTheme}
-                language="json5"
-                readOnly={isEditorModelPending}
-                deferValueSync={isEditorModelPending}
-                fontSize={fontSize}
-                lineHeight={lineHeight}
-                tabSize={tabSize}
-                onChange={handleEditorChange}
-                onPaste={handleEditorPaste}
+            {#if isJsonlMode && jsonlViewMode === 'records'}
+              <JsonlView
+                content={content}
+                tabId={$activeTab?.id ?? ''}
+                fileName={$activeTab?.fileName ?? null}
+                onOpenSource={() => { jsonlViewMode = 'source'; }}
+                onSummaryChange={(summary) => { jsonlSummary = summary; }}
+                onToast={showToast}
               />
-            </div>
-            {#if hasLogJsonFragmentsPanel}
-              <LogJsonFragmentsPanel
-                fragments={logJsonFragments}
-                selectedIndex={selectedLogJsonFragmentIndex}
-                theme={monacoTheme}
-                tabSize={tabSize}
-                on:select={(event) => { selectedLogJsonFragmentIndex = event.detail.index; }}
-                on:copy={(event) => copyLogJsonFragment(event.detail.value)}
-                on:close={() => { isLogJsonPanelOpen = false; }}
-              />
+            {:else}
+              {#if isJsonlMode}
+                <div class="jsonl-source-bar">
+                  <span><strong>JSONL</strong> {$t('jsonl.sourceModeHint')}</span>
+                  <button type="button" onclick={() => { jsonlViewMode = 'records'; }}>
+                    {$t('jsonl.backToView')}
+                  </button>
+                </div>
+              {/if}
+              <div class="json-editor-main">
+                <MonacoEditor
+                  bind:this={monacoEditor}
+                  value={content}
+                  modelKey={editorModelKey}
+                  theme={monacoTheme}
+                  language="json5"
+                  readOnly={isEditorModelPending}
+                  deferValueSync={isEditorModelPending}
+                  fontSize={fontSize}
+                  lineHeight={lineHeight}
+                  tabSize={tabSize}
+                  onChange={handleEditorChange}
+                  onPaste={handleEditorPaste}
+                />
+              </div>
+              {#if hasLogJsonFragmentsPanel && !isJsonlFileActive}
+                <LogJsonFragmentsPanel
+                  fragments={logJsonFragments}
+                  selectedIndex={selectedLogJsonFragmentIndex}
+                  theme={monacoTheme}
+                  tabSize={tabSize}
+                  on:select={(event) => { selectedLogJsonFragmentIndex = event.detail.index; }}
+                  on:copy={(event) => copyLogJsonFragment(event.detail.value)}
+                  on:close={() => { isLogJsonPanelOpen = false; }}
+                />
+              {/if}
             {/if}
           </div>
         {/if}
@@ -1671,7 +1729,7 @@
     </div>
 
     <!-- Unified Right Section & Toggler -->
-    {#if !isDiffMode && !isConvertMode && !isCodegenMode && !isSchemaMode && !usesLogJsonLayout}
+    {#if !isDiffMode && !isConvertMode && !isCodegenMode && !isSchemaMode && !usesLogJsonLayout && !isJsonlFileActive}
       
       {#if showTreeView}
         <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -1729,6 +1787,9 @@
       stats={stats}
       lineCount={lineCount}
       isMixedMode={isMixedLogContent}
+      isJsonlMode={isJsonlMode}
+      jsonlViewMode={jsonlViewMode}
+      jsonlSummary={jsonlSummary}
     />
   {/if}
 
@@ -1750,6 +1811,41 @@
 </div>
 
 <style>
+  .jsonl-source-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 34px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    font-size: 11px;
+  }
+
+  .jsonl-source-bar strong {
+    margin-right: 6px;
+    color: var(--accent);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+  }
+
+  .jsonl-source-bar button {
+    min-height: 24px;
+    padding: 0 8px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    background: var(--bg-primary);
+    cursor: pointer;
+    font-size: 11px;
+  }
+
+  .jsonl-source-bar button:hover {
+    border-color: var(--accent);
+    color: var(--text-primary);
+  }
+
   .json-folder-container {
     height: 100%;
     min-width: 0;

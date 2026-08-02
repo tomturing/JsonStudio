@@ -12,7 +12,10 @@
     activeTab,
     stats,
     lineCount,
-    isMixedMode
+    isMixedMode,
+    isJsonlMode,
+    jsonlViewMode,
+    jsonlSummary,
   } = $props<{
     isDiffMode: boolean;
     diffLineCount: number;
@@ -24,6 +27,14 @@
     stats: import('$lib/services/json').JsonStats;
     lineCount: number;
     isMixedMode: boolean;
+    isJsonlMode: boolean;
+    jsonlViewMode: 'records' | 'source';
+    jsonlSummary: {
+      recordCount: number;
+      validCount: number;
+      invalidCount: number;
+      emptyCount: number;
+    } | null;
   }>();
 
   function formatBytes(bytes: number): string {
@@ -49,6 +60,34 @@
     <span class="text-(--text-secondary)">
       {diffRightStats.key_count} {$t('status.keys')} · {diffRightStats.depth} {$t('status.levels')} · {formatBytes(diffRightStats.byte_size)} · {diffModified ? diffModified.split('\n').length : 0} {$t('status.lines')}
     </span>
+  {:else if isJsonlMode}
+    {#if activeTab?.fileName}
+      <span class="text-(--text-primary) font-medium">{activeTab.fileName}</span>
+      {#if activeTab.isModified}
+        <span class="text-(--warning)" title={$t('status.modified')}>●</span>
+      {/if}
+      <div class="w-px h-3.5 bg-(--divider-strong)"></div>
+    {/if}
+
+    <span class="text-(--accent) font-medium">JSONL</span>
+    <div class="w-px h-3.5 bg-(--divider-strong)"></div>
+    {#if jsonlViewMode === 'source'}
+      <span class="text-(--text-secondary)" data-testid="editor-line-count">
+        {lineCount} {$t('status.lines')}
+      </span>
+    {:else if jsonlSummary}
+      <span class="text-(--text-secondary)" data-testid="editor-jsonl-record-count">{jsonlSummary.recordCount} {$t('status.records')}</span>
+      <div class="w-px h-3.5 bg-(--divider-strong)"></div>
+      <span class="text-(--success)">{jsonlSummary.validCount} {$t('status.valid')}</span>
+      <div class="w-px h-3.5 bg-(--divider-strong)"></div>
+      <span class="text-(--error)">{jsonlSummary.invalidCount} {$t('status.errors')}</span>
+      <div class="w-px h-3.5 bg-(--divider-strong)"></div>
+      <span class="text-(--text-secondary)">{jsonlSummary.emptyCount} {$t('status.empty')}</span>
+    {:else}
+      <span class="text-(--text-secondary)">{$t('status.parsing')}</span>
+    {/if}
+
+    <span class="flex-1"></span>
   {:else}
     <!-- File info on the left -->
     {#if activeTab?.fileName}

@@ -36,3 +36,12 @@ test('keeps invalid opened content unchanged', async () => {
 
   assert.equal(await normalizeOpenedJson(source, createOptions()), source);
 });
+
+test('keeps JSONL source unchanged even when it contains one valid JSON value', async () => {
+  const source = '{"userId":123}';
+
+  assert.equal(
+    await normalizeOpenedJson(source, { ...createOptions(), skipNormalization: true }),
+    source,
+  );
+});

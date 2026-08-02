@@ -324,6 +324,7 @@ test('editor paste formatting runs outside the UI thread and discards stale resu
 
   assert.match(monacoSource, /editor\.onDidPaste/);
   assert.match(editorSource, /onPaste=\{handleEditorPaste\}/);
+  assert.match(editorSource, /if \(isJsonlTab\(sourceTab\)\) return;/);
   assert.match(editorSource, /const tabId = sourceTab\.id/);
   assert.match(editorSource, /formatPastedJsonAsync\(sourceValue, tabSize\)/);
   assert.match(editorSource, /\$activeTab\?\.id !== tabId/);

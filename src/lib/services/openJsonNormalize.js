@@ -4,6 +4,7 @@
  *   formatJson: (value: string, indent?: number) => Promise<string>;
  *   detectDialect: (value: string) => Promise<'JSON' | 'JSON5' | ''>;
  *   formatJson5: (value: string, indent?: number) => Promise<string>;
+ *   skipNormalization?: boolean;
  * }} NormalizeOpenedJsonOptions
  */
 
@@ -17,6 +18,7 @@
  * @returns {Promise<string>}
  */
 export async function normalizeOpenedJson(sourceValue, options) {
+  if (options.skipNormalization) return sourceValue;
   if (!sourceValue.trim()) return sourceValue;
 
   const indent = options.indent ?? 2;

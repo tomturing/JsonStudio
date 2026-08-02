@@ -57,8 +57,6 @@
         "ext": [
           "json",
           "json5",
-          "jsonl",
-          "ndjson",
           "jsonc",
           "geojson",
           "topojson",
@@ -73,6 +71,15 @@
         "contentTypes": [
           "public.json"
         ]
+      },
+      {
+        "ext": ["jsonl", "ndjson"],
+        "name": "JSON Lines Document",
+        "description": "Newline-delimited JSON records",
+        "role": "Editor",
+        "rank": "Owner",
+        "mimeType": "application/x-ndjson",
+        "contentTypes": ["public.json"]
       }
     ],
     "windows": {

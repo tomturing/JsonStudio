@@ -18,5 +18,10 @@ export const locale = writable<Locale>('zh');
 
 export const t = derived(locale, ($locale) => {
   const dict = translations[$locale] || translations.zh;
-  return (key: TranslationKey | string): string => dict[key as string] || (key as string);
+  return (key: TranslationKey | string): string => {
+    const translationKey = key as string;
+    return Object.prototype.hasOwnProperty.call(dict, translationKey)
+      ? dict[translationKey]
+      : translationKey;
+  };
 });
