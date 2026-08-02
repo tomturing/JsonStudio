@@ -66,9 +66,6 @@
         { open: "'", close: "'" },
       ],
       comments: { lineComment: '//', blockComment: ['/*', '*/'] },
-      folding: {
-        markers: { start: /^\s*[{[]/, end: /^\s*[}\]]/ },
-      },
     });
     
     monacoInstance.languages.setMonarchTokensProvider('json5', {
