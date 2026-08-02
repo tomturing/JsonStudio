@@ -54,8 +54,16 @@
     "category": "DeveloperTool",
     "fileAssociations": [
       {
+        "ext": ["json"],
+        "name": "JSON Document",
+        "role": "Editor",
+        "rank": "Owner",
+        "contentTypes": [
+          "public.json"
+        ]
+      },
+      {
         "ext": [
-          "json",
           "json5",
           "jsonc",
           "geojson",
@@ -68,9 +76,10 @@
         "name": "JSON Document",
         "role": "Editor",
         "rank": "Owner",
-        "contentTypes": [
-          "public.json"
-        ]
+        "exportedType": {
+          "identifier": "com.jsonstudio.json-document",
+          "conformsTo": ["public.json"]
+        }
       },
       {
         "ext": ["jsonl", "ndjson"],
@@ -79,7 +88,10 @@
         "role": "Editor",
         "rank": "Owner",
         "mimeType": "application/x-ndjson",
-        "contentTypes": ["public.json"]
+        "exportedType": {
+          "identifier": "com.jsonstudio.json-lines",
+          "conformsTo": ["public.text"]
+        }
       }
     ],
     "windows": {

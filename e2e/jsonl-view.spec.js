@@ -158,24 +158,34 @@ test('searches, filters, expands, and switches JSONL source view', async ({ page
 
   await search.fill('');
   await chooseJsonlOption(view, 'Field', 'name');
-  await view.getByLabel('Field value').fill('Alice');
+  const fieldValue = view.getByLabel('Field value');
+  await fieldValue.focus();
+  await expect(fieldValue).toHaveCSS('box-shadow', 'none');
+  await expect(fieldValue).toHaveCSS('outline-style', 'none');
+  await fieldValue.fill('Alice');
   await expect(view.locator('.jsonl-item')).toHaveCount(1);
   await expect(view.locator('.jsonl-item')).toContainText('Alice');
   await chooseJsonlOption(view, 'Field', 'Choose a field');
   await expect(view.getByLabel('Field value')).toHaveValue('');
   await chooseJsonlOption(view, 'Field', 'name');
-  await view.getByLabel('Field value').fill('Alice');
+  await fieldValue.fill('Alice');
+  const operatorSelect = view.getByRole('button', { name: 'Field operator', exact: true });
   await chooseJsonlOption(view, 'Field operator', 'contains');
-  await view.getByLabel('Field value').fill('li');
+  await expect(operatorSelect).toHaveText('contains');
+  await fieldValue.fill('li');
   await expect(view.locator('.jsonl-item')).toHaveCount(1);
   await chooseJsonlOption(view, 'Field', 'active');
   await chooseJsonlOption(view, 'Field operator', '!=');
-  await view.getByLabel('Field value').fill('true');
+  await fieldValue.fill('true');
   await expect(view.locator('.jsonl-item')).toHaveCount(1);
   await expect(view.locator('.jsonl-item')).toContainText('Bob');
   await chooseJsonlOption(view, 'Field', 'name');
   await chooseJsonlOption(view, 'Field operator', 'not contains');
-  await view.getByLabel('Field value').fill('li');
+  await expect(operatorSelect).toHaveText('not contains');
+  await expect.poll(() => operatorSelect.locator('span').evaluate((element) => {
+    return element.scrollWidth <= element.clientWidth;
+  })).toBe(true);
+  await fieldValue.fill('li');
   await expect(view.locator('.jsonl-item')).toHaveCount(1);
   await expect(view.locator('.jsonl-item')).toContainText('Bob');
   await view.getByLabel('Clear field filter').click();
@@ -337,6 +347,13 @@ test('uses compact Chinese pagination labels', async ({ page }) => {
   const view = page.getByTestId('jsonl-view');
   const pagination = view.getByTestId('jsonl-pagination');
   const status = pagination.locator('.jsonl-page-status');
+
+  await chooseJsonlOption(view, '字段', 'event');
+  const operatorSelect = view.getByRole('button', { name: '条件', exact: true });
+  await chooseJsonlOption(view, '条件', '包含');
+  await expect(operatorSelect).toHaveText('包含');
+  await chooseJsonlOption(view, '条件', '不包含');
+  await expect(operatorSelect).toHaveText('不包含');
 
   await expect(status.locator('.jsonl-page-current-prefix')).toHaveCount(0);
   await expect(status.locator('.jsonl-page-current-suffix')).toHaveText('页');

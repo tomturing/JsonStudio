@@ -67,6 +67,12 @@
   let fieldOperator = $state<FieldOperator>('=');
   let fieldQuery = $state('');
   let openSelect = $state<SelectMenu>(null);
+  let fieldOperatorLabel = $derived.by(() => {
+    if (fieldOperator === '=') return $t('jsonl.operator.equals');
+    if (fieldOperator === '!=') return $t('jsonl.operator.notEquals');
+    if (fieldOperator === 'contains') return $t('jsonl.operator.contains');
+    return $t('jsonl.operator.notContains');
+  });
   let expandedRowIds = new SvelteSet<string>();
   let pageInput = $state('1');
   let currentPage = $state(1);
@@ -388,7 +394,7 @@
           disabled={!fieldName}
           onclick={(event) => toggleSelect('operator', event)}
         >
-          <span>{fieldOperator}</span>
+          <span>{fieldOperatorLabel}</span>
           <svg class:is-open={openSelect === 'operator'} viewBox="0 0 16 16" aria-hidden="true">
             <path d="m4 6 4 4 4-4" />
           </svg>
@@ -758,7 +764,6 @@
 
   .jsonl-search:focus-within {
     border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent-glow);
   }
 
   .jsonl-search input {
@@ -820,8 +825,8 @@
   }
 
   .jsonl-field-filter input {
-    width: 132px;
-    flex: 0 0 132px;
+    width: 111px;
+    flex: 0 0 111px;
     height: 30px;
     min-width: 0;
     padding: 0 8px;
@@ -843,13 +848,13 @@
   }
 
   .jsonl-field-filter .jsonl-select-wrap:first-child {
-    width: 128px;
-    flex: 0 0 128px;
+    width: 116px;
+    flex: 0 0 116px;
   }
 
   .jsonl-field-filter .jsonl-select-wrap:nth-child(2) {
-    width: 72px;
-    flex: 0 0 72px;
+    width: 120px;
+    flex: 0 0 120px;
   }
 
   .jsonl-select {
@@ -868,7 +873,7 @@
     cursor: pointer;
     font: 11px/1.25 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', sans-serif;
     text-align: left;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    transition: border-color 0.15s ease, background 0.15s ease;
   }
 
   .jsonl-select > span {
@@ -904,7 +909,6 @@
   .jsonl-select:focus-visible {
     border-color: var(--accent);
     background: color-mix(in srgb, var(--bg-primary) 82%, var(--accent-glow));
-    box-shadow: 0 0 0 2px var(--accent-glow);
   }
 
   .jsonl-select:disabled {
@@ -970,7 +974,6 @@
 
   .jsonl-field-filter input:focus {
     border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent-glow);
   }
 
   .jsonl-field-filter input:disabled {
@@ -1099,7 +1102,6 @@
 
   .jsonl-pagination-center input:focus-visible {
     border-color: var(--accent);
-    box-shadow: 0 0 0 2px var(--accent-glow);
   }
 
   .jsonl-record-list {
@@ -1287,6 +1289,13 @@
   input:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
+  }
+
+  .jsonl-root .jsonl-search input:focus-visible,
+  .jsonl-root .jsonl-field-filter input:focus-visible,
+  .jsonl-root .jsonl-select:focus-visible,
+  .jsonl-root .jsonl-pagination-center input:focus-visible {
+    outline: 0;
   }
 
   @keyframes jsonl-spin {
