@@ -46,9 +46,9 @@ export function createTreeKeyEdit(pointers, path, nextKey, parentKeys, currentKe
 
 /**
  * Return the source range that should be selected when a Tree node is deleted
- * from the editor. The range includes the node's key (when it has one) and
- * exactly one separator from its parent, so Monaco's native Delete/Backspace
- * command cannot leave an orphaned comma behind.
+ * from the editor. The range includes the node's key (when it has one), the
+ * necessary parent separator, and any trailing JSON5 comments or commas, so
+ * Monaco's native Delete/Backspace command cannot leave an orphaned separator.
  *
  * @param {string} content
  * @param {{
@@ -74,7 +74,9 @@ export function getTreeNodeSelectionRange(content, node) {
   const trailingRange = findTrailingSourceRange(content, end);
   if (trailingRange.end > end) {
     let selectionStart = start;
-    if (!trailingRange.hasSeparator && trailingRange.hasLineComment) {
+    const shouldIncludePreviousSeparator = !trailingRange.hasComma
+      || trailingRange.hasTrailingComma;
+    if (shouldIncludePreviousSeparator) {
       const previousSignificantOffset = findPreviousSignificantOffset(content, start);
       if (previousSignificantOffset >= 0 && content[previousSignificantOffset] === ',') {
         selectionStart = previousSignificantOffset;
@@ -97,12 +99,12 @@ export function getTreeNodeSelectionRange(content, node) {
 /**
  * @param {string} content
  * @param {number} start
- * @returns {{ end: number; hasSeparator: boolean; hasLineComment: boolean }}
+ * @returns {{ end: number; hasComma: boolean; hasLineComment: boolean; hasTrailingComma: boolean }}
  */
 function findTrailingSourceRange(content, start) {
   let index = Math.max(0, start);
   let end = index;
-  let hasSeparator = false;
+  let hasComma = false;
   let hasLineComment = false;
   let lineBreakSinceToken = false;
 
@@ -123,22 +125,15 @@ function findTrailingSourceRange(content, start) {
       if (lineBreakSinceToken) break;
       const lineEnd = findLineTerminator(content, index + 2);
       hasLineComment = true;
-      return {
-        end: lineEnd < 0 ? content.length : lineEnd + getLineBreakLength(content, lineEnd),
-        hasSeparator,
-        hasLineComment,
-      };
+      end = lineEnd < 0 ? content.length : lineEnd + getLineBreakLength(content, lineEnd);
+      return createTrailingSourceRange(content, end, hasComma, hasLineComment);
     }
 
     if (content.startsWith('/*', index)) {
       const commentEnd = content.indexOf('*/', index + 2);
       if (lineBreakSinceToken) break;
       if (commentEnd < 0) {
-        return {
-          end: content.length,
-          hasSeparator,
-          hasLineComment,
-        };
+        return createTrailingSourceRange(content, content.length, hasComma, hasLineComment);
       }
       end = commentEnd + 2;
       lineBreakSinceToken = containsLineBreak(content, index, end);
@@ -147,7 +142,7 @@ function findTrailingSourceRange(content, start) {
     }
 
     if (content[index] === ',') {
-      hasSeparator = true;
+      hasComma = true;
       end = index + 1;
       index = end;
       lineBreakSinceToken = false;
@@ -157,7 +152,25 @@ function findTrailingSourceRange(content, start) {
     break;
   }
 
-  return { end, hasSeparator, hasLineComment };
+  return createTrailingSourceRange(content, end, hasComma, hasLineComment);
+}
+
+/**
+ * @param {string} content
+ * @param {number} end
+ * @param {boolean} hasComma
+ * @param {boolean} hasLineComment
+ */
+function createTrailingSourceRange(content, end, hasComma, hasLineComment) {
+  const nextSignificantOffset = findNextSignificantOffset(content, end);
+  const nextSignificantChar = nextSignificantOffset >= 0 ? content[nextSignificantOffset] : '';
+
+  return {
+    end,
+    hasComma,
+    hasLineComment,
+    hasTrailingComma: hasComma && (nextSignificantChar === '}' || nextSignificantChar === ']'),
+  };
 }
 
 /**
@@ -202,8 +215,8 @@ function getLineBreakLength(content, offset) {
 
 /** @param {string} content @param {number} start @param {number} end */
 function containsLineBreak(content, start, end) {
-  return findLineTerminator(content, start) >= 0
-    && findLineTerminator(content, start) < end;
+  const lineTerminator = findLineTerminator(content, start);
+  return lineTerminator >= 0 && lineTerminator < end;
 }
 
 /**
@@ -251,6 +264,45 @@ function findPreviousSignificantOffset(content, boundary) {
   }
 
   return previous;
+}
+
+/**
+ * @param {string} content
+ * @param {number} start
+ */
+function findNextSignificantOffset(content, start) {
+  let index = Math.max(0, Math.min(content.length, start));
+
+  while (index < content.length) {
+    const lineBreakLength = getLineBreakLength(content, index);
+    if (lineBreakLength > 0) {
+      index += lineBreakLength;
+      continue;
+    }
+
+    if (/\s/u.test(content[index])) {
+      index += 1;
+      continue;
+    }
+
+    if (content.startsWith('//', index)) {
+      const lineEnd = findLineTerminator(content, index + 2);
+      index = lineEnd < 0
+        ? content.length
+        : lineEnd + getLineBreakLength(content, lineEnd);
+      continue;
+    }
+
+    if (content.startsWith('/*', index)) {
+      const commentEnd = content.indexOf('*/', index + 2);
+      index = commentEnd < 0 ? content.length : commentEnd + 2;
+      continue;
+    }
+
+    return index;
+  }
+
+  return -1;
 }
 
 /**

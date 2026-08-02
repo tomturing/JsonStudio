@@ -27,8 +27,8 @@ const JSON5_COMMENT_DOCUMENT = `{
   }
 }`;
 
-async function installTauriHarness(page, content = DOCUMENT) {
-  await page.addInitScript(({ tabStateKey, settingsKey, content }) => {
+async function installTauriHarness(page, content = DOCUMENT, formatType = 'JSON') {
+  await page.addInitScript(({ tabStateKey, settingsKey, content, formatType }) => {
     localStorage.setItem(tabStateKey, JSON.stringify({
       tabs: [{
         id: 'tree-test-tab',
@@ -41,7 +41,7 @@ async function installTauriHarness(page, content = DOCUMENT) {
           key_count: 6,
           depth: 2,
           byte_size: content.length,
-          format_type: 'JSON',
+          format_type: formatType,
           error_info: null,
         },
         isPinned: false,
@@ -94,11 +94,12 @@ async function installTauriHarness(page, content = DOCUMENT) {
     tabStateKey: TAB_STATE_KEY,
     settingsKey: SETTINGS_KEY,
     content,
+    formatType,
   });
 }
 
-async function openTreeDocument(page, content = DOCUMENT) {
-  await installTauriHarness(page, content);
+async function openTreeDocument(page, content = DOCUMENT, formatType = 'JSON') {
+  await installTauriHarness(page, content, formatType);
   await page.goto('/');
   await expect(page.getByTestId('tree-ready')).toBeAttached();
   await expect(page.getByTestId('editor-line-count')).toContainText(`${content.split('\n').length} lines`);
@@ -137,7 +138,7 @@ test('deleting a Tree selection removes its parent separator', async ({ page }) 
 });
 
 test('deleting a JSON5 Tree selection removes its trailing line comment', async ({ page }) => {
-  await openTreeDocument(page, JSON5_COMMENT_DOCUMENT);
+  await openTreeDocument(page, JSON5_COMMENT_DOCUMENT, 'JSON5');
 
   await treeRow(page, '/1/A').locator('.tree-toggle-btn').click();
   await treeRow(page, '/1/A/1').locator('.tree-toggle-btn').click();

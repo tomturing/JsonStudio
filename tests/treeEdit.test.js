@@ -110,7 +110,7 @@ test('creates tree copy text for absolute node paths', () => {
   );
 });
 
-test('selects a tree entry with its parent separator for deletion', () => {
+test('selects a tree entry and its source trivia for deletion', () => {
   const cases = [
     {
       content: '{"a":1,"b":2,"c":3}',
@@ -156,6 +156,43 @@ test('selects a tree entry with its parent separator for deletion', () => {
       content: '{"a": 1, "b": 2 // b\n}',
       path: '/b',
       expected: '{"a": 1}',
+    },
+    {
+      content: '{"a": 1, "b": 2, // b\n}',
+      path: '/b',
+      expected: '{"a": 1}',
+    },
+    {
+      content: `{
+  "a": 1,
+  "b": 2, // b
+  "c": 3
+}`,
+      path: '/b',
+      expected: `{
+  "a": 1,
+  "c": 3
+}`,
+    },
+    {
+      content: '{"a": 1, "b": 2,}',
+      path: '/b',
+      expected: '{"a": 1}',
+    },
+    {
+      content: '{"a": 1, "b": 2 /* b */}',
+      path: '/b',
+      expected: '{"a": 1}',
+    },
+    {
+      content: '[1, 2,]',
+      path: '/1',
+      expected: '[1]',
+    },
+    {
+      content: '{\r\n  "a": 1,\r\n  "b": 2 // b\r\n}',
+      path: '/b',
+      expected: '{\r\n  "a": 1}',
     },
     {
       content: `{
