@@ -22,6 +22,7 @@ test('registers JSON-family extensions with stable macOS content types', () => {
     'sarif',
   ]);
   assert.equal(jsonFamilyAssociation.rank, 'Owner');
+  assert.deepEqual(jsonFamilyAssociation.contentTypes, ['com.jsonstudio.json-document']);
   assert.deepEqual(jsonFamilyAssociation.exportedType, {
     identifier: 'com.jsonstudio.json-document',
     conformsTo: ['public.json'],
@@ -34,6 +35,7 @@ test('registers JSON-family extensions with stable macOS content types', () => {
   assert.equal(jsonlAssociation.role, 'Editor');
   assert.equal(jsonlAssociation.rank, 'Owner');
   assert.equal(jsonlAssociation.mimeType, 'application/x-ndjson');
+  assert.deepEqual(jsonlAssociation.contentTypes, ['com.jsonstudio.json-lines']);
   assert.deepEqual(jsonlAssociation.exportedType, {
     identifier: 'com.jsonstudio.json-lines',
     conformsTo: ['public.text'],

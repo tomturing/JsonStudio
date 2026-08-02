@@ -1178,6 +1178,7 @@
     <button
       class="toolbar-icon-btn"
       onclick={onToggleTheme}
+      aria-label={isDarkMode ? $t('toolbar.lightMode') : $t('toolbar.darkMode')}
       use:tooltip={isDarkMode ? $t('toolbar.lightMode') : $t('toolbar.darkMode')}
     >
       {#if isDarkMode}
@@ -1194,6 +1195,7 @@
     <button
       class="toolbar-icon-btn"
       onclick={onOpenSettings}
+      aria-label={$t('toolbar.settings')}
       use:tooltip={$t('toolbar.settings')}
     >
       <svg class="toolbar-icon" style="color: #06b6d4;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1204,6 +1206,7 @@
     <button
       class="toolbar-icon-btn {isAlwaysOnTop ? 'is-active' : ''}"
       onclick={onToggleAlwaysOnTop}
+      aria-label={isAlwaysOnTop ? $t('toolbar.unpinFromTop') : $t('toolbar.pinToTop')}
       use:tooltip={isAlwaysOnTop ? $t('toolbar.unpinFromTop') : $t('toolbar.pinToTop')}
     >
       <svg class="toolbar-icon" style="color: #ec4899;" viewBox="0 0 24 24" fill={isAlwaysOnTop ? 'currentColor' : 'none'} stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

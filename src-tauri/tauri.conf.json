@@ -76,6 +76,9 @@
         "name": "JSON Document",
         "role": "Editor",
         "rank": "Owner",
+        "contentTypes": [
+          "com.jsonstudio.json-document"
+        ],
         "exportedType": {
           "identifier": "com.jsonstudio.json-document",
           "conformsTo": ["public.json"]
@@ -88,6 +91,9 @@
         "role": "Editor",
         "rank": "Owner",
         "mimeType": "application/x-ndjson",
+        "contentTypes": [
+          "com.jsonstudio.json-lines"
+        ],
         "exportedType": {
           "identifier": "com.jsonstudio.json-lines",
           "conformsTo": ["public.text"]
