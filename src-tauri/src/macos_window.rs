@@ -1,5 +1,5 @@
 use crate::app_state::{focus_main_window, queue_or_emit_open_files};
-use crate::commands::window::{apply_macos_transparent_chrome, reposition_macos_traffic_lights};
+use crate::commands::window::apply_macos_native_titlebar;
 use crate::macos_menu_view::make_window_position_menu_item_view;
 use crate::window_bounds::restored_window_axis;
 use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder, WINDOW_SUBMENU_ID};
@@ -345,9 +345,7 @@ pub(crate) fn set_app_menu_language(app: tauri::AppHandle, language: String) -> 
 }
 
 pub(crate) fn setup(app: &tauri::AppHandle) -> tauri::Result<()> {
-    if let Some(window) = app.get_webview_window("main") {
-        apply_macos_transparent_chrome(window.ns_window()?);
-    }
+    apply_macos_native_titlebar(app);
     set_menu(app, "zh")?;
     install_event_tap(app);
     app.on_menu_event(|app, event| match event.id().0.as_str() {
@@ -396,17 +394,6 @@ pub(crate) fn handle_run_event(app: &tauri::AppHandle, event: &tauri::RunEvent) 
                 })
                 .collect();
             queue_or_emit_open_files(app, paths);
-        }
-        tauri::RunEvent::WindowEvent {
-            label,
-            event: tauri::WindowEvent::Resized(_),
-            ..
-        } if label == "main" => {
-            if let Some(window) = app.get_webview_window("main") {
-                if let Ok(ns_window) = window.ns_window() {
-                    reposition_macos_traffic_lights(ns_window);
-                }
-            }
         }
         _ => {}
     }

@@ -20,6 +20,10 @@
         "center": true,
         "decorations": false,
         "transparent": true,
+        "trafficLightPosition": {
+          "x": 12,
+          "y": 20
+        },
         "zoomHotkeysEnabled": false
       }
     ],

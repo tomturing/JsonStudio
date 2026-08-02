@@ -1,12 +1,24 @@
 // Window-related commands
 
+#[cfg(target_os = "macos")]
+use std::sync::atomic::{AtomicU64, Ordering};
+
+#[cfg(target_os = "macos")]
+use dispatch2::DispatchQueue;
+
+#[cfg(target_os = "macos")]
+use tauri::Manager;
+
+#[cfg(target_os = "macos")]
+static MACOS_THEME_GENERATION: AtomicU64 = AtomicU64::new(0);
+
 fn transparent_window_background() -> tauri::window::Color {
     tauri::window::Color(0, 0, 0, 0)
 }
 
 /// Set the native window theme while leaving custom chrome transparency intact.
 #[tauri::command]
-pub fn set_window_theme(window: tauri::Window, is_dark: bool) -> Result<(), String> {
+pub fn set_window_theme(window: tauri::WebviewWindow, is_dark: bool) -> Result<(), String> {
     let theme = if is_dark {
         tauri::Theme::Dark
     } else {
@@ -18,40 +30,90 @@ pub fn set_window_theme(window: tauri::Window, is_dark: bool) -> Result<(), Stri
         .map_err(|e| e.to_string())?;
 
     #[cfg(target_os = "macos")]
-    {
-        use cocoa::base::{id, nil};
-        use cocoa::foundation::NSString;
-        use objc::{msg_send, sel, sel_impl};
-
-        let ns_window = window.ns_window().map_err(|e| e.to_string())? as id;
-
-        unsafe {
-            let appearance_name = if is_dark {
-                // Dark mode
-                NSString::alloc(nil).init_str("NSAppearanceNameDarkAqua")
-            } else {
-                // Light mode
-                NSString::alloc(nil).init_str("NSAppearanceNameAqua")
-            };
-
-            // Get NSAppearance class
-            let appearance_class = objc::class!(NSAppearance);
-            let appearance: id = msg_send![appearance_class, appearanceNamed: appearance_name];
-            let _: () = msg_send![ns_window, setAppearance: appearance];
-        }
-
-        // Changing the appearance relayouts the native titlebar. Position the
-        // traffic lights after that relayout so a theme switch cannot move them.
-        apply_macos_transparent_chrome(ns_window as *mut std::ffi::c_void);
-    }
+    apply_macos_window_theme(&window, is_dark)?;
 
     Ok(())
 }
 
 #[cfg(target_os = "macos")]
-pub fn apply_macos_transparent_chrome(ns_window: *mut std::ffi::c_void) {
+pub fn apply_macos_native_titlebar(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        if let Ok(ns_window) = window.ns_window() {
+            apply_macos_transparent_chrome(ns_window);
+            unsafe {
+                layout_macos_titlebar(ns_window as cocoa::base::id);
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+pub fn apply_macos_window_theme(
+    window: &tauri::WebviewWindow,
+    is_dark: bool,
+) -> Result<(), String> {
+    let generation = MACOS_THEME_GENERATION.fetch_add(1, Ordering::AcqRel) + 1;
+    let app_handle = window.app_handle().clone();
+    let window_label = window.label().to_owned();
+
+    window
+        .run_on_main_thread(move || {
+            if MACOS_THEME_GENERATION.load(Ordering::Acquire) != generation {
+                return;
+            }
+
+            let Some(window) = app_handle.get_webview_window(&window_label) else {
+                return;
+            };
+            let Ok(ns_window) = window.ns_window() else {
+                return;
+            };
+
+            unsafe {
+                use cocoa::base::{id, nil};
+                use cocoa::foundation::NSString;
+                use objc::{msg_send, sel, sel_impl};
+
+                let ns_window = ns_window as id;
+                let appearance_name = if is_dark {
+                    NSString::alloc(nil).init_str("NSAppearanceNameDarkAqua")
+                } else {
+                    NSString::alloc(nil).init_str("NSAppearanceNameAqua")
+                };
+                let appearance_class = objc::class!(NSAppearance);
+                let appearance: id = msg_send![appearance_class, appearanceNamed: appearance_name];
+                let _: () = msg_send![ns_window, setAppearance: appearance];
+                apply_macos_transparent_chrome(ns_window as *mut std::ffi::c_void);
+                layout_macos_titlebar(ns_window);
+            }
+
+            let follow_up_app = app_handle.clone();
+            let follow_up_label = window_label.clone();
+            DispatchQueue::main().exec_async(move || {
+                if MACOS_THEME_GENERATION.load(Ordering::Acquire) != generation {
+                    return;
+                }
+
+                let Some(window) = follow_up_app.get_webview_window(&follow_up_label) else {
+                    return;
+                };
+                let Ok(ns_window) = window.ns_window() else {
+                    return;
+                };
+
+                unsafe {
+                    layout_macos_titlebar(ns_window as cocoa::base::id);
+                }
+            });
+        })
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn apply_macos_transparent_chrome(ns_window: *mut std::ffi::c_void) {
     use cocoa::appkit::{
-        NSColor, NSWindow, NSWindowCollectionBehavior, NSWindowStyleMask, NSWindowTitleVisibility,
+        NSColor, NSWindow, NSWindowButton, NSWindowCollectionBehavior, NSWindowStyleMask,
+        NSWindowTitleVisibility,
     };
     use cocoa::base::{id, nil, NO, YES};
     use objc::{msg_send, sel, sel_impl};
@@ -72,10 +134,20 @@ pub fn apply_macos_transparent_chrome(ns_window: *mut std::ffi::c_void) {
         }
         ns_window.setTitleVisibility_(NSWindowTitleVisibility::NSWindowTitleHidden);
         ns_window.setTitlebarAppearsTransparent_(YES);
-        position_macos_traffic_lights(ns_window);
         ns_window.setOpaque_(NO);
         ns_window.setBackgroundColor_(background);
         let _: () = msg_send![ns_window, setHasShadow: NO];
+
+        for button_kind in [
+            NSWindowButton::NSWindowCloseButton,
+            NSWindowButton::NSWindowMiniaturizeButton,
+            NSWindowButton::NSWindowZoomButton,
+        ] {
+            let button = ns_window.standardWindowButton_(button_kind);
+            if button != nil {
+                let _: () = msg_send![button, setHidden: NO];
+            }
+        }
 
         let mut behavior = ns_window.collectionBehavior();
         behavior |= NSWindowCollectionBehavior::NSWindowCollectionBehaviorFullScreenPrimary;
@@ -87,48 +159,13 @@ pub fn apply_macos_transparent_chrome(ns_window: *mut std::ffi::c_void) {
 }
 
 #[cfg(target_os = "macos")]
-pub fn reposition_macos_traffic_lights(ns_window: *mut std::ffi::c_void) {
-    unsafe {
-        position_macos_traffic_lights(ns_window as cocoa::base::id);
-    }
-}
-
-#[cfg(target_os = "macos")]
-unsafe fn position_macos_traffic_lights(ns_window: cocoa::base::id) {
-    use cocoa::appkit::{NSView, NSWindow, NSWindowButton};
+unsafe fn layout_macos_titlebar(ns_window: cocoa::base::id) {
     use cocoa::base::nil;
     use objc::{msg_send, sel, sel_impl};
 
-    const TRAFFIC_LIGHT_X: f64 = 10.0;
-    const TRAFFIC_LIGHT_TOP_INSET: f64 = 20.0;
-
-    let close_button = ns_window.standardWindowButton_(NSWindowButton::NSWindowCloseButton);
-    let minimize_button =
-        ns_window.standardWindowButton_(NSWindowButton::NSWindowMiniaturizeButton);
-    let zoom_button = ns_window.standardWindowButton_(NSWindowButton::NSWindowZoomButton);
-    if close_button == nil || minimize_button == nil || zoom_button == nil {
-        return;
-    }
-
-    let titlebar_container = close_button.superview().superview();
-    if titlebar_container == nil {
-        return;
-    }
-
-    let close_frame = NSView::frame(close_button);
-    let mut titlebar_frame = NSView::frame(titlebar_container);
-    titlebar_frame.size.height = close_frame.size.height + TRAFFIC_LIGHT_TOP_INSET;
-    titlebar_frame.origin.y = NSWindow::frame(ns_window).size.height - titlebar_frame.size.height;
-    let _: () = msg_send![titlebar_container, setFrame: titlebar_frame];
-
-    let button_gap = NSView::frame(minimize_button).origin.x - close_frame.origin.x;
-    for (index, button) in [close_button, minimize_button, zoom_button]
-        .into_iter()
-        .enumerate()
-    {
-        let mut frame = NSView::frame(button);
-        frame.origin.x = TRAFFIC_LIGHT_X + index as f64 * button_gap;
-        button.setFrameOrigin(frame.origin);
+    let content_view: cocoa::base::id = msg_send![ns_window, contentView];
+    if content_view != nil {
+        let _: () = msg_send![content_view, layoutSubtreeIfNeeded];
     }
 }
 

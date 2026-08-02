@@ -48,6 +48,7 @@ tree-sitter-language-pack = { version = "=1.8.1", default-features = false }
 tree-sitter-language-pack = { path = "../vendor/tree-sitter-language-pack" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
+dispatch2 = "0.3"
 cocoa = "0.25"
 core-foundation = "0.10"
 core-graphics = "0.24"

@@ -2239,6 +2239,7 @@ dependencies = [
  "core-foundation 0.10.1",
  "core-graphics 0.24.0",
  "csv",
+ "dispatch2",
  "heck 0.5.0",
  "image",
  "json5",
