@@ -277,6 +277,9 @@ export default {
   'schema.validToast': 'JSON matches schema',
   'schema.emptyJson': 'Please enter JSON data on the left',
   'schema.emptySchema': 'Please enter a JSON Schema',
+  'schema.loading': 'Loading schema…',
+  'schema.loadedRemote': 'Auto-loaded from $schema',
+  'schema.fetchFailed': 'Unable to fetch remote schema',
 
   // Export image
   'toolbar.exportImage': 'Export Image',

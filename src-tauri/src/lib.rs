@@ -22,6 +22,7 @@ use commands::file::{
 };
 use commands::file_watcher::{unwatch_all_files, unwatch_file, watch_file, FileWatcherState};
 use commands::json::{json_escape, json_format, json_minify, json_unescape};
+use commands::schema::fetch_remote_schema;
 use commands::shortcuts::{
     format_clipboard_and_show, register_global_shortcut, show_main_window, update_shortcut,
     GlobalShortcutRegistry, DEFAULT_FORMAT_CLIPBOARD_SHORTCUT, DEFAULT_SHOW_APP_SHORTCUT,
@@ -101,6 +102,7 @@ pub fn run() {
             json_minify,
             json_escape,
             json_unescape,
+            fetch_remote_schema,
             set_window_theme,
             desktop_platform,
             open_devtools,

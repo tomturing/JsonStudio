@@ -277,6 +277,9 @@ export default {
   'schema.validToast': 'JSON 符合 Schema',
   'schema.emptyJson': '请在左侧输入 JSON 数据',
   'schema.emptySchema': '请输入 JSON Schema',
+  'schema.loading': '正在拉取 Schema…',
+  'schema.loadedRemote': '已从 $schema 自动加载',
+  'schema.fetchFailed': '无法拉取远端 Schema',
 
   // Export image
   'toolbar.exportImage': '导出图片',

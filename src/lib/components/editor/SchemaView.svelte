@@ -4,6 +4,7 @@
   import { initMonaco } from '$lib/services/monaco';
   import { registerMonacoThemes, type EditorTheme } from '$lib/config/monacoThemes';
   import { generateSchema, validateWithSchema, type SchemaError } from '$lib/services/schema';
+  import { fetchRemoteSchema, getRemoteSchemaUrl } from '$lib/services/schemaReference';
   import { t } from '$lib/i18n';
 
   type TabMode = 'generate' | 'validate';
@@ -38,8 +39,12 @@
   let schemaError = $state('');
   let validationErrors = $state<SchemaError[]>([]);
   let validationValid = $state<boolean | null>(null);
+  let remoteSchemaUrl = $state<string | null>(null);
+  let isLoadingRemoteSchema = $state(false);
   let isSyncingLeft = false;
   let genTimer: ReturnType<typeof setTimeout> | null = null;
+  let remoteSchemaTimer: ReturnType<typeof setTimeout> | null = null;
+  let remoteSchemaRequest: AbortController | null = null;
   let copied = $state(false);
 
   $effect(() => {
@@ -67,10 +72,13 @@
     if (!rightEditor) return;
 
     if (newMode === 'generate') {
+      cancelRemoteSchemaLoad();
+      remoteSchemaUrl = null;
       rightEditor.updateOptions({ readOnly: true });
       doGenerate(leftEditor?.getValue() || '');
     } else {
       rightEditor.updateOptions({ readOnly: false });
+      void loadReferencedSchema(leftEditor?.getValue() || '');
     }
   }
 
@@ -78,6 +86,9 @@
     onInputChange(value);
     if (mode === 'generate') {
       scheduleGenerate(value);
+    } else {
+      cancelRemoteSchemaLoad();
+      scheduleReferencedSchemaValidation(value);
     }
   }
 
@@ -129,6 +140,82 @@
       }
     } catch (e: any) {
       schemaError = e?.message || 'Validation failed';
+    }
+  }
+
+  function scheduleReferencedSchemaValidation(jsonStr: string) {
+    if (remoteSchemaTimer) clearTimeout(remoteSchemaTimer);
+    remoteSchemaTimer = setTimeout(() => {
+      remoteSchemaTimer = null;
+      void loadReferencedSchema(jsonStr);
+    }, 400);
+  }
+
+  function cancelRemoteSchemaLoad() {
+    if (remoteSchemaTimer) {
+      clearTimeout(remoteSchemaTimer);
+      remoteSchemaTimer = null;
+    }
+    remoteSchemaRequest?.abort();
+    remoteSchemaRequest = null;
+    isLoadingRemoteSchema = false;
+  }
+
+  async function loadReferencedSchema(jsonStr: string) {
+    if (!rightEditor) return;
+
+    cancelRemoteSchemaLoad();
+
+    if (!jsonStr.trim()) {
+      remoteSchemaUrl = null;
+      doValidate();
+      return;
+    }
+
+    let schemaUrl: string | null;
+    try {
+      schemaUrl = getRemoteSchemaUrl(jsonStr);
+    } catch {
+      remoteSchemaUrl = null;
+      doValidate();
+      return;
+    }
+
+    if (!schemaUrl) {
+      remoteSchemaUrl = null;
+      doValidate();
+      return;
+    }
+
+    if (schemaUrl === remoteSchemaUrl) {
+      doValidate();
+      return;
+    }
+
+    const controller = new AbortController();
+    remoteSchemaRequest = controller;
+    isLoadingRemoteSchema = true;
+    schemaError = '';
+    validationErrors = [];
+    validationValid = null;
+
+    try {
+      const schema = await fetchRemoteSchema(schemaUrl, { signal: controller.signal });
+      if (controller.signal.aborted || remoteSchemaRequest !== controller) return;
+
+      rightEditor.setValue(schema);
+      remoteSchemaUrl = schemaUrl;
+      doValidate();
+    } catch (error: any) {
+      if (!controller.signal.aborted) {
+        remoteSchemaUrl = null;
+        schemaError = error?.message || $t('schema.fetchFailed');
+      }
+    } finally {
+      if (remoteSchemaRequest === controller) {
+        remoteSchemaRequest = null;
+        isLoadingRemoteSchema = false;
+      }
     }
   }
 
@@ -210,11 +297,26 @@
       handleLeftChange(leftEditor!.getValue());
     });
 
-    doGenerate(inputValue);
+    const schemaUrl = (() => {
+      try {
+        return getRemoteSchemaUrl(inputValue);
+      } catch {
+        return null;
+      }
+    })();
+
+    if (schemaUrl) {
+      mode = 'validate';
+      rightEditor.updateOptions({ readOnly: false });
+      void loadReferencedSchema(inputValue);
+    } else {
+      doGenerate(inputValue);
+    }
   });
 
   onDestroy(() => {
     if (genTimer) clearTimeout(genTimer);
+    cancelRemoteSchemaLoad();
     leftEditor?.dispose();
     rightEditor?.dispose();
   });
@@ -315,6 +417,11 @@
               {$t('schema.invalid')} ({validationErrors.length})
             </div>
           {/if}
+          {#if mode === 'validate' && isLoadingRemoteSchema}
+            <div class="sv-result-badge is-loading">{$t('schema.loading')}</div>
+          {:else if mode === 'validate' && remoteSchemaUrl}
+            <div class="sv-remote-schema" title={remoteSchemaUrl}>{$t('schema.loadedRemote')}</div>
+          {/if}
         </div>
         <div class="sv-pane-actions">
           <button
@@ -349,7 +456,7 @@
 
       {#if validationErrors.length > 0}
         <div class="sv-error-list">
-          {#each validationErrors as err}
+          {#each validationErrors as err (err)}
             <div class="sv-error-item">
               <span class="sv-error-path">{err.path || '/'}</span>
               <span class="sv-error-msg">{err.message}</span>
@@ -521,6 +628,21 @@
     background: color-mix(in srgb, var(--error, #ef4444) 15%, transparent);
     color: var(--error, #ef4444);
     border-color: color-mix(in srgb, var(--error, #ef4444) 25%, transparent);
+  }
+
+  .sv-result-badge.is-loading {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 24%, transparent);
+  }
+
+  .sv-remote-schema {
+    max-width: 180px;
+    overflow: hidden;
+    color: var(--text-tertiary);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .sv-result-icon {

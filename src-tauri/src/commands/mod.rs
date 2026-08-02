@@ -6,3 +6,4 @@ pub mod file_watcher;
 pub mod convert;
 pub mod codegen;
 pub mod export_image;
+pub mod schema;

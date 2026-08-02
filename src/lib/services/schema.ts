@@ -154,7 +154,7 @@ export function validateWithSchema(jsonContent: string, schemaContent: string): 
 
   delete schema.$schema;
 
-  const instance = new Ajv({ allErrors: true, verbose: true });
+  const instance = new Ajv({ allErrors: true, verbose: true, strict: false, logger: false });
   addFormats(instance);
 
   const validate = instance.compile(schema);
