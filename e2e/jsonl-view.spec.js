@@ -233,6 +233,22 @@ test('keeps JSONL source one-record-per-line when Monaco paste fires', async ({ 
   await expect(page.getByTestId('editor-jsonl-record-count')).toHaveCount(0);
 });
 
+test('creates an editable tab from the JSONL view', async ({ page }) => {
+  await installJsonlHarness(page, '{"id":1,"name":"Alice"}');
+  await page.goto('/');
+
+  await expect(page.getByTestId('jsonl-view')).toBeVisible();
+  await page.getByRole('button', { name: 'New', exact: true }).click();
+
+  const editorSurface = page.locator('[data-testid="json-editor"] .view-lines');
+  await expect(editorSurface).toBeVisible();
+  await editorSurface.click();
+  await page.keyboard.type('x');
+
+  await expect(editorSurface).toContainText('x');
+  await expect(page.getByRole('tab').last()).toHaveAttribute('aria-selected', 'true');
+});
+
 test('paginates JSONL records at ten rows and jumps from the bottom controls', async ({ page }) => {
   await installJsonlHarness(page, PAGINATED_JSONL_DOCUMENT);
   await page.goto('/');

@@ -663,7 +663,10 @@
     setContentState(loadedContent, {
       deferLineCount: options.deferSideEffects ?? false,
     });
-    attachEditorModel(tabId, options.deferSideEffects ?? false);
+    // The JSONL records view unmounts Monaco, so there is no existing model
+    // switch to defer when returning to the editor with a new active tab.
+    const deferModelAttach = (options.deferSideEffects ?? false) && monacoEditor !== null;
+    attachEditorModel(tabId, deferModelAttach);
     stats = currentTab.stats;
     const needsLogJsonDetection = prepareLogJsonState(currentTab, loadedContent, {
       hideTreeWhileDetecting: options.hideTreeWhileDetecting ?? true,
