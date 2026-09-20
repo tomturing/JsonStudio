@@ -101,7 +101,7 @@
             if (inString) {
               if (isEscaped) {
                 isEscaped = false;
-              } else if (ch === '\') {
+              } else if (ch === '\\') {
                 isEscaped = true;
               } else if (ch === stringChar) {
                 inString = false;
